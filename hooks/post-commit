@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Git post-commit hook for AI Agent Sandbox
+# Automatically destroys/terminates the container after any git commit.
+
+if [ "${DESTROY_ON_COMMIT:-1}" = "1" ]; then
+    echo ""
+    echo "================================================================="
+    echo " [SANDBOX] Git commit detected! Terminating container..."
+    echo " Container will be destroyed immediately by Docker (--rm)."
+    echo "================================================================="
+    echo ""
+
+    # Flush file system buffers to ensure commit is safely stored on the mounted workspace
+    sync
+
+    # Purge any temporary secrets or cached session state from volatile memory
+    rm -rf /run/secrets/* /home/agent/.secrets/* /tmp/* /var/tmp/* 2>/dev/null || true
+    history -c 2>/dev/null || true
+
+    # Terminate container PID 1 (which runs entrypoint / agent shell)
+    # The host wrapper and Docker '--rm' flag guarantee 100% residue-free deletion.
+    kill -TERM 1 2>/dev/null || kill -KILL 1 2>/dev/null || exit 0
+fi
+
