@@ -1,0 +1,13 @@
+{
+  "model": "gemini-3.8-flash-medium",
+  "reasoningEffort": "medium",
+  "toolPermission": "always-proceed",
+  "artifactReviewPolicy": "always-proceed",
+  "permissions": {
+    "allow": [
+      "command(*)",
+      "file_write(*)",
+      "file_read(*)"
+    ]
+  }
+}

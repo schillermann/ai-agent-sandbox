@@ -44,13 +44,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Kept before COPY commands so rebuilds with script changes are instantaneous
 RUN groupadd -g 1000 agent && \
     useradd -u 1000 -g agent -m -s /bin/bash agent && \
-    mkdir -p /workspace /run/secrets /home/agent/.secrets /etc/git-hooks && \
+    mkdir -p /workspace /run/secrets /home/agent/.secrets /home/agent/.gemini/antigravity-cli /etc/git-hooks && \
     chown -R agent:agent /workspace /run/secrets /home/agent && \
     git config --system core.hooksPath /etc/git-hooks
 
-# Copy executable scripts last to maximize Docker layer cache hits
+# Copy executable scripts and configurations last to maximize Docker layer cache hits
 COPY --chmod=755 hooks/post-commit /etc/git-hooks/post-commit
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=agent:agent settings.json /home/agent/.gemini/antigravity-cli/settings.json
 
 # Permanently enforce non-root execution
 USER agent
