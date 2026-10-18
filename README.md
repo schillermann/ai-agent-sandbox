@@ -100,38 +100,36 @@ The sandbox includes:
 ## Getting Started
 
 ### Prerequisites
+- Linux OS (Ubuntu, Debian, Fedora, Arch, etc.)
 - Docker Engine 20.10+ (or Podman)
-- Linux / macOS / WSL2
 
 ### 1. Build the Docker Image
 You can build the full sandbox (default) or select a specific target stage:
 
 ```bash
-# Default (Full environment with Web & Rust/X11 tooling):
+# Default (Full environment with Web & Rust tooling):
 docker build -t ai-agent-sandbox:latest .
 
-# Python backend + JavaScript frontend stage (tailored for MaklerChat):
-docker build --target web -t ai-agent-sandbox:web .
+# Python backend + JavaScript frontend stage (tailored for Web & AI Assistant profiles):
+docker build --target web-ai-assistant -t ai-agent-sandbox:web-ai-assistant .
 
-# Rust & X11 / OpenGL stage (tailored for Low-Cube):
-docker build --target rust -t ai-agent-sandbox:rust .
+# Rust game engine stage (tailored for 3D/graphics projects):
+docker build --target rust-game -t ai-agent-sandbox:rust-game .
 
 # Minimal core base stage:
 docker build --target base -t ai-agent-sandbox:base .
 ```
 
 ### 2. Launch with the Hardened Helper Script
-The included [run-sandbox.sh](run-sandbox.sh) script automatically applies all security flags and supports selecting target profiles:
+The included [run-sandbox.sh](run-sandbox.sh) script automatically applies all security flags and auto-detects project types:
 
 ```bash
-# Run with full environment in current directory:
-./run-sandbox.sh
+# Automatically detects Cargo.toml or package.json in the target folder:
+./run-sandbox.sh /path/to/project
 
-# Run specifically with the Web profile (Python + Node.js for MaklerChat):
-./run-sandbox.sh --target web ../maklerchat
-
-# Run specifically with the Rust + X11/OpenGL profile (for Low-Cube):
-./run-sandbox.sh --target rust ../low-cube
+# Or explicitly select target profile:
+./run-sandbox.sh --target rust-game /path/to/rust-project
+./run-sandbox.sh --target web-ai-assistant /path/to/web-project
 ```
 
 ### 3. Manual Docker CLI Invocation
@@ -155,17 +153,35 @@ docker run --rm -it \
 ```
 
 ### 4. Running with Docker Compose
-Choose the appropriate service profile:
+Mount any external project folder via `PROJECT_DIR`:
 ```bash
-# Start default full sandbox session:
-docker compose run --rm agent-sandbox
+# Start Rust sandbox:
+PROJECT_DIR=/path/to/rust-project docker compose run --rm agent-sandbox-rust-game
 
-# Start Web sandbox (Python backend & JavaScript frontend):
-docker compose run --rm agent-sandbox-web
-
-# Start Rust sandbox (Rust toolchain & X11/OpenGL libraries):
-docker compose run --rm agent-sandbox-rust
+# Start Web / AI Assistant sandbox:
+PROJECT_DIR=/path/to/web-project docker compose run --rm agent-sandbox-web-ai-assistant
 ```
+
+### 5. Recommended Dual-Workflow: Sandbox Agent + Native Host Execution
+Because this sandbox runs natively on Linux with bind mounts, the host and container share files with **0ms inotify latency** and identical file ownership (`UID 1000:1000`).
+
+- **In the Sandbox (Terminal 1 - AI Agent):**
+  The AI agent edits code safely in isolation and verifies changes headless (e.g. `cargo check`, `cargo test`):
+  ```bash
+  ./run-sandbox.sh /path/to/project
+  ```
+
+- **On the Host (Terminal 2 - Developer / GUI & Testing):**
+  Run GUI games, servers, or hot-reloaders directly on your host with full native GPU performance:
+  ```bash
+  cd /path/to/project
+  cargo run
+
+  # Or with automatic hot-reloading on agent file changes:
+  cargo watch -x "run"
+  ```
+  No container GUI forwarding, port mapping, or display configurations needed.
+
 
 ---
 

@@ -45,16 +45,14 @@ if [ -z "$(git config --global user.email 2>/dev/null)" ]; then
     git config --global user.email "${GIT_AUTHOR_EMAIL:-agent@sandbox.local}"
 fi
 
-# If workspace is a git repository, also install the post-commit hook locally
-# to guarantee auto-destruction even if local repo configs override system hooks
-if [ -d "/workspace/.git/hooks" ] && [ ! -f "/workspace/.git/hooks/post-commit" ]; then
-    cp /etc/git-hooks/post-commit /workspace/.git/hooks/post-commit 2>/dev/null || true
-    chmod +x /workspace/.git/hooks/post-commit 2>/dev/null || true
-fi
-
 # Set default editor to standard vi / vim-tiny
 export EDITOR="${EDITOR:-vi}"
 export VISUAL="${VISUAL:-vi}"
+
+# Include workspace and common source directories in PYTHONPATH if present
+if [ -d "/workspace" ]; then
+    export PYTHONPATH=".:/workspace:/workspace/src:/workspace/backend:${PYTHONPATH:-}"
+fi
 
 # Execute given command or default to interactive shell
 if [ $# -eq 0 ]; then

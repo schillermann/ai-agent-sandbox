@@ -3,12 +3,15 @@
 # Optimized for running AI coding agents (such as Antigravity) safely.
 #
 # Available Stages / Targets:
-#   - base:        Minimal core sandbox (hardened, unprivileged 'agent', hooks, entrypoint)
-#   - web:         Python backend + JavaScript frontend development (MaklerChat profile)
-#   - python-node: Alias for 'web'
-#   - rust:        Rust toolchain + X11/OpenGL/Wayland libraries (Low-Cube profile)
-#   - rust-x11:    Alias for 'rust'
-#   - full / all:  Combined sandbox with both Web and Rust/X11 development environments
+#   - base:              Minimal core sandbox (hardened, unprivileged 'agent', hooks, entrypoint)
+#   - web-ai-assistant:  Python backend + JavaScript frontend development (Web & AI Assistant profile)
+#   - web-ai-assistent:  Alias for 'web-ai-assistant'
+#   - web:               Alias for 'web-ai-assistant'
+#   - python-node:       Alias for 'web-ai-assistant'
+#   - rust-game:         Rust toolchain + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
+#   - rust:              Alias for 'rust-game'
+#   - rust-x11:          Alias for 'rust-game'
+#   - full / all:        Combined sandbox with both Web and Rust/OpenGL development environments
 # ==============================================================================
 
 # ==============================================================================
@@ -64,54 +67,63 @@ CMD ["/bin/bash"]
 
 
 # ==============================================================================
-# Stage 2: Web Development (Python Backend & JavaScript Frontend)
-# Specifically tailored for projects like MaklerChat
+# Stage 2: Web & AI Assistant Development (Python Backend & JavaScript Frontend)
+# Specifically tailored for Web & AI Assistant profiles
 # ==============================================================================
-FROM base AS web
+FROM base AS web-ai-assistant
 
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 
-# 1. Install Python 3 development environment & PostgreSQL client libs (for asyncpg / pyfakepg)
+# 1. Install Python 3 development environment and PostgreSQL client headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
     python3-dev \
     libpq-dev \
-    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Node.js 20.x LTS & npm for modern frontend build tooling (Vite, Lit, etc.)
+# 2. Install Node.js 20.x LTS & npm for frontend tooling, and global Pyright CLI
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g pyright \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure npm global directory and Python environment for unprivileged 'agent' user
-ENV NPM_CONFIG_PREFIX=/home/agent/.npm-global \
-    PIP_BREAK_SYSTEM_PACKAGES=1 \
-    PATH="/home/agent/.npm-global/bin:$PATH"
+# Configure dedicated virtualenv and npm global directory for unprivileged 'agent' user
+ENV VIRTUAL_ENV=/opt/venv \
+    NPM_CONFIG_PREFIX=/home/agent/.npm-global \
+    PATH="/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
-RUN mkdir -p /home/agent/.npm-global && \
-    chown -R agent:agent /home/agent/.npm-global
+RUN python3 -m venv /opt/venv && \
+    mkdir -p /home/agent/.npm-global && \
+    chown -R agent:agent /opt/venv /home/agent/.npm-global
+
+# 3. Pre-install core testing and linting tools for AI agents
+RUN /opt/venv/bin/pip install --no-cache-dir \
+    pytest \
+    pytest-asyncio \
+    ruff
 
 USER agent
 
 
-# Alias for web target
-FROM web AS python-node
+# Aliases for web-ai-assistant target
+FROM web-ai-assistant AS web-ai-assistent
+FROM web-ai-assistant AS web
+FROM web-ai-assistant AS python-node
 
 
 # ==============================================================================
-# Stage 3: Rust & X11 / OpenGL Development
-# Specifically tailored for graphical / engine projects like Low-Cube (.github)
+# Stage 3: Rust & X11 / OpenGL Game Development
+# Specifically tailored for graphical and game engine projects
 # ==============================================================================
-FROM base AS rust
+FROM base AS rust-game
 
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 
-# 1. Install X11, OpenGL, Wayland, and pkg-config dependencies matching Low-Cube CI (.github)
+# 1. Install X11, OpenGL, Wayland, and pkg-config dependencies for graphics and game engines
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-dev \
     libwayland-dev \
@@ -138,15 +150,16 @@ RUN mkdir -p /usr/local/rustup /usr/local/cargo && \
 USER agent
 
 
-# Alias for rust target
-FROM rust AS rust-x11
+# Aliases for rust-game target
+FROM rust-game AS rust
+FROM rust-game AS rust-x11
 
 
 # ==============================================================================
 # Stage 4: Full All-in-One Sandbox (Default)
 # Combines Python, Node.js, Rust, and X11/OpenGL libraries
 # ==============================================================================
-FROM web AS full
+FROM web-ai-assistant AS full
 
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
@@ -164,13 +177,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-installed Rust toolchain from the rust stage
-COPY --from=rust --chown=agent:agent /usr/local/rustup /usr/local/rustup
-COPY --from=rust --chown=agent:agent /usr/local/cargo /usr/local/cargo
+# Copy pre-installed Rust toolchain from the rust-game stage
+COPY --from=rust-game --chown=agent:agent /usr/local/rustup /usr/local/rustup
+COPY --from=rust-game --chown=agent:agent /usr/local/cargo /usr/local/cargo
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
-    PATH="/usr/local/cargo/bin:/home/agent/.npm-global/bin:$PATH"
+    PATH="/usr/local/cargo/bin:/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
 USER agent
 

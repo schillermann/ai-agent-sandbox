@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Helper script to build and launch the AI Agent Sandbox with full hardening
-# and 100% residue-free container destruction upon stop or git commit.
+# Helper script to build and launch the AI Agent Sandbox on Linux
+# Features:
+# - Strictly hardened for native Linux execution
+# - 100% residue-free container destruction upon stop or git commit
+# - Zero root privileges (agent user: UID 1000, GID 1000)
+# - Volatile RAM tmpfs for temporary files and secrets
+# - Live zero-latency inotify synchronization with the host workspace
 # ==============================================================================
 
 set -euo pipefail
+
+# Ensure script runs on native Linux
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "[ERROR] The AI Agent Sandbox is strictly designed for Linux systems." >&2
+    exit 1
+fi
 
 SANDBOX_TARGET="${SANDBOX_TARGET:-}"
 
@@ -27,8 +38,25 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-WORKSPACE_DIR="${1:-$(pwd)}"
-shift 1 2>/dev/null || true
+# Determine workspace directory (if $1 is an existing directory, use it; otherwise default to current dir)
+if [ $# -gt 0 ] && [ -d "$1" ]; then
+    WORKSPACE_DIR="$1"
+    shift 1
+else
+    WORKSPACE_DIR="$(pwd)"
+fi
+
+# Convert WORKSPACE_DIR to absolute path
+WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
+
+# Auto-detect target stage from workspace contents if not explicitly specified
+if [ -z "${SANDBOX_TARGET}" ]; then
+    if [ -f "${WORKSPACE_DIR}/Cargo.toml" ]; then
+        SANDBOX_TARGET="rust-game"
+    elif [ -f "${WORKSPACE_DIR}/package.json" ] || [ -f "${WORKSPACE_DIR}/pyproject.toml" ] || [ -f "${WORKSPACE_DIR}/requirements.txt" ]; then
+        SANDBOX_TARGET="web-ai-assistant"
+    fi
+fi
 
 # Determine default image name based on target if SANDBOX_IMAGE is not set
 if [ -n "${SANDBOX_IMAGE:-}" ]; then
@@ -38,9 +66,6 @@ elif [ -n "${SANDBOX_TARGET}" ]; then
 else
     IMAGE_NAME="ai-agent-sandbox:latest"
 fi
-
-# Convert WORKSPACE_DIR to absolute path
-WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
 
 # Resource limits (can be overridden via environment variables)
 CPUS="${SANDBOX_CPUS:-2.0}"
@@ -80,7 +105,7 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 echo "================================================================="
-echo " Starting AI Agent Sandbox (Residue-free Ephemeral Instance)"
+echo " Starting AI Agent Sandbox (Residue-free Linux Ephemeral Instance)"
 echo " Image:             ${IMAGE_NAME}"
 if [ -n "${SANDBOX_TARGET}" ]; then
 echo " Target Stage:      ${SANDBOX_TARGET}"
