@@ -6,18 +6,38 @@
 
 set -euo pipefail
 
-IMAGE_NAME="${SANDBOX_IMAGE:-ai-agent-sandbox:latest}"
+SANDBOX_TARGET="${SANDBOX_TARGET:-}"
 
-# Optional command-line flag: --clean to purge any dangling sandbox containers
-if [ "${1:-}" = "--clean" ]; then
-    echo "[SANDBOX] Cleaning all dangling or stopped sandbox containers..."
-    docker container prune -f --filter "label=sandbox=ai-agent"
-    echo "[SANDBOX] Cleanup complete."
-    exit 0
-fi
+# Parse optional arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --clean)
+            echo "[SANDBOX] Cleaning all dangling or stopped sandbox containers..."
+            docker container prune -f --filter "label=sandbox=ai-agent"
+            echo "[SANDBOX] Cleanup complete."
+            exit 0
+            ;;
+        --target|-t)
+            SANDBOX_TARGET="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 WORKSPACE_DIR="${1:-$(pwd)}"
 shift 1 2>/dev/null || true
+
+# Determine default image name based on target if SANDBOX_IMAGE is not set
+if [ -n "${SANDBOX_IMAGE:-}" ]; then
+    IMAGE_NAME="${SANDBOX_IMAGE}"
+elif [ -n "${SANDBOX_TARGET}" ]; then
+    IMAGE_NAME="ai-agent-sandbox:${SANDBOX_TARGET}"
+else
+    IMAGE_NAME="ai-agent-sandbox:latest"
+fi
 
 # Convert WORKSPACE_DIR to absolute path
 WORKSPACE_DIR="$(cd "${WORKSPACE_DIR}" && pwd)"
@@ -36,7 +56,11 @@ DESTROY_ON_COMMIT="${DESTROY_ON_COMMIT:-1}"
 # Check if image exists; if not, build it
 if ! docker image inspect "${IMAGE_NAME}" >/dev/null 2>&1; then
     echo "[SANDBOX] Image '${IMAGE_NAME}' not found. Building now..."
-    docker build -t "${IMAGE_NAME}" "$(dirname "$0")"
+    BUILD_ARGS=()
+    if [ -n "${SANDBOX_TARGET}" ]; then
+        BUILD_ARGS+=(--target "${SANDBOX_TARGET}")
+    fi
+    docker build "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" "$(dirname "$0")"
 fi
 
 # Generate unique container ID
@@ -58,6 +82,9 @@ trap cleanup EXIT INT TERM HUP
 echo "================================================================="
 echo " Starting AI Agent Sandbox (Residue-free Ephemeral Instance)"
 echo " Image:             ${IMAGE_NAME}"
+if [ -n "${SANDBOX_TARGET}" ]; then
+echo " Target Stage:      ${SANDBOX_TARGET}"
+fi
 echo " Container Name:    ${CONTAINER_NAME}"
 echo " Workspace:         ${WORKSPACE_DIR}"
 echo " User:              agent (UID 1000, GID 1000, strictly non-root)"

@@ -50,7 +50,7 @@ To ensure that no container remnants, dangling volumes, or leaked caches persist
    - Volatile temporary directories and credentials (`/run/secrets`, `~/.secrets`, `/tmp`, `/var/tmp`) and command history are shredded in memory.
    - The hook signals PID 1 (`kill -TERM 1`) to terminate the container session cleanly.
 2. **Daemon-Level Auto-Removal**: Launched with `--rm`, the Docker engine automatically purges the container state and unmounted layers when the process exits.
-3. **Host-Side Trap Assurance**: The wrapper script [run-sandbox.sh](file:///home/mario/code/ai-agent-sandbox/run-sandbox.sh) installs a POSIX `trap` (`EXIT INT TERM HUP`). Regardless of whether the container terminates normally, crashes, or is stopped with `Ctrl+C` or `docker stop`, `docker rm -fv <container_name>` is guaranteed to run, eliminating any lingering anonymous volumes or zombie containers.
+3. **Host-Side Trap Assurance**: The wrapper script [run-sandbox.sh](run-sandbox.sh) installs a POSIX `trap` (`EXIT INT TERM HUP`). Regardless of whether the container terminates normally, crashes, or is stopped with `Ctrl+C` or `docker stop`, `docker rm -fv <container_name>` is guaranteed to run, eliminating any lingering anonymous volumes or zombie containers.
 4. **Targeted Pruning**: All sandbox containers carry the label `sandbox=ai-agent`. Run `./run-sandbox.sh --clean` at any time to purge any orphaned containers.
 
 
@@ -104,19 +104,34 @@ The sandbox includes:
 - Linux / macOS / WSL2
 
 ### 1. Build the Docker Image
+You can build the full sandbox (default) or select a specific target stage:
+
 ```bash
+# Default (Full environment with Web & Rust/X11 tooling):
 docker build -t ai-agent-sandbox:latest .
+
+# Python backend + JavaScript frontend stage (tailored for MaklerChat):
+docker build --target web -t ai-agent-sandbox:web .
+
+# Rust & X11 / OpenGL stage (tailored for Low-Cube):
+docker build --target rust -t ai-agent-sandbox:rust .
+
+# Minimal core base stage:
+docker build --target base -t ai-agent-sandbox:base .
 ```
 
 ### 2. Launch with the Hardened Helper Script
-The included [run-sandbox.sh](file:///home/mario/code/ai-agent-sandbox/run-sandbox.sh) script automatically applies all security flags:
+The included [run-sandbox.sh](run-sandbox.sh) script automatically applies all security flags and supports selecting target profiles:
 
 ```bash
-# Run in the current directory:
+# Run with full environment in current directory:
 ./run-sandbox.sh
 
-# Or specify a target workspace:
-./run-sandbox.sh /home/mario/code/my-project
+# Run specifically with the Web profile (Python + Node.js for MaklerChat):
+./run-sandbox.sh --target web ../maklerchat
+
+# Run specifically with the Rust + X11/OpenGL profile (for Low-Cube):
+./run-sandbox.sh --target rust ../low-cube
 ```
 
 ### 3. Manual Docker CLI Invocation
@@ -140,9 +155,16 @@ docker run --rm -it \
 ```
 
 ### 4. Running with Docker Compose
+Choose the appropriate service profile:
 ```bash
-# Start an interactive sandbox session
+# Start default full sandbox session:
 docker compose run --rm agent-sandbox
+
+# Start Web sandbox (Python backend & JavaScript frontend):
+docker compose run --rm agent-sandbox-web
+
+# Start Rust sandbox (Rust toolchain & X11/OpenGL libraries):
+docker compose run --rm agent-sandbox-rust
 ```
 
 ---
@@ -185,4 +207,4 @@ The container immediately exits and is wiped by Docker. The committed changes pe
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](file:///home/mario/code/ai-agent-sandbox/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
