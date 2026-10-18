@@ -18,11 +18,14 @@ x-sandbox-common: &sandbox-common
     - /run/secrets:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
     - /home/agent/.secrets:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
   environment:
-    - DESTROY_ON_COMMIT=1
+    - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-AI Agent}
     - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-agent@sandbox.local}
   volumes:
     - ${PROJECT_DIR:-.}:/workspace:rw
+    - ${HOME:-/home/agent}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:ro
+  labels:
+    sandbox: ai-agent
 
 services:
   # Default service with full development environment (Web + Rust)
@@ -33,7 +36,6 @@ services:
       dockerfile: Dockerfile
       target: full
     image: ai-agent-sandbox:latest
-    container_name: ai_agent_sandbox
 
   # Stage for Python backend & JavaScript frontend (Web & AI Assistant)
   agent-sandbox-web-ai-assistant:
@@ -43,7 +45,6 @@ services:
       dockerfile: Dockerfile
       target: web-ai-assistant
     image: ai-agent-sandbox:web-ai-assistant
-    container_name: ai_agent_sandbox_web_ai_assistant
 
   # Alias for backward compatibility
   agent-sandbox-web:
@@ -53,7 +54,6 @@ services:
       dockerfile: Dockerfile
       target: web-ai-assistant
     image: ai-agent-sandbox:web-ai-assistant
-    container_name: ai_agent_sandbox_web
 
   # Stage with Rust & X11 / OpenGL / Wayland libraries (Game Engine & Graphics)
   agent-sandbox-rust-game:
@@ -63,7 +63,6 @@ services:
       dockerfile: Dockerfile
       target: rust-game
     image: ai-agent-sandbox:rust-game
-    container_name: ai_agent_sandbox_rust_game
 
   # Alias for backward compatibility
   agent-sandbox-rust:
@@ -73,4 +72,3 @@ services:
       dockerfile: Dockerfile
       target: rust-game
     image: ai-agent-sandbox:rust-game
-    container_name: ai_agent_sandbox_rust

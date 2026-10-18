@@ -45,6 +45,10 @@ if [ -z "$(git config --global user.email 2>/dev/null)" ]; then
     git config --global user.email "${GIT_AUTHOR_EMAIL:-agent@sandbox.local}"
 fi
 
+# Ensure workspace is treated as a safe git directory
+git config --global --add safe.directory /workspace 2>/dev/null || true
+git config --global --add safe.directory '*' 2>/dev/null || true
+
 # Set default editor to standard vi / vim-tiny
 export EDITOR="${EDITOR:-vi}"
 export VISUAL="${VISUAL:-vi}"
@@ -54,9 +58,12 @@ if [ -d "/workspace" ]; then
     export PYTHONPATH=".:/workspace:/workspace/src:/workspace/backend:${PYTHONPATH:-}"
 fi
 
-# Execute given command or default to interactive shell
-if [ $# -eq 0 ]; then
-    exec /bin/bash
-else
+# Execute given command, or default to agy (if available) / interactive bash shell
+if [ $# -gt 0 ]; then
     exec "$@"
+elif command -v agy >/dev/null 2>&1; then
+    echo "[SANDBOX] Starting Antigravity CLI as primary process..."
+    exec agy
+else
+    exec /bin/bash
 fi
