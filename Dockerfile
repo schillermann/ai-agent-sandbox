@@ -5,13 +5,7 @@
 # Available Stages / Targets:
 #   - base:              Minimal core sandbox (hardened, unprivileged 'agent', agy CLI, entrypoint)
 #   - web-ai-assistant:  Python backend + JavaScript frontend development (Web & AI Assistant profile)
-#   - web-ai-assistent:  Alias for 'web-ai-assistant'
-#   - web:               Alias for 'web-ai-assistant'
-#   - python-node:       Alias for 'web-ai-assistant'
 #   - rust-game:         Rust toolchain + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
-#   - rust:              Alias for 'rust-game'
-#   - rust-x11:          Alias for 'rust-game'
-#   - full / all:        Combined sandbox with both Web and Rust/OpenGL development environments
 # ==============================================================================
 
 # ==============================================================================
@@ -110,10 +104,6 @@ RUN /opt/venv/bin/pip install --no-cache-dir \
 USER agent
 
 
-# Aliases for web-ai-assistant target
-FROM web-ai-assistant AS web-ai-assistent
-FROM web-ai-assistant AS web
-FROM web-ai-assistant AS python-node
 
 
 # ==============================================================================
@@ -152,43 +142,3 @@ RUN mkdir -p /usr/local/rustup /usr/local/cargo && \
 USER agent
 
 
-# Aliases for rust-game target
-FROM rust-game AS rust
-FROM rust-game AS rust-x11
-
-
-# ==============================================================================
-# Stage 4: Full All-in-One Sandbox (Default)
-# Combines Python, Node.js, Rust, and X11/OpenGL libraries
-# ==============================================================================
-FROM web-ai-assistant AS full
-
-USER root
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Install X11 / OpenGL libraries into full stage
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-dev \
-    libwayland-dev \
-    libx11-dev \
-    libxcursor-dev \
-    libxi-dev \
-    libxinerama-dev \
-    libxkbcommon-dev \
-    libxrandr-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy pre-installed Rust toolchain from the rust-game stage
-COPY --from=rust-game --chown=agent:agent /usr/local/rustup /usr/local/rustup
-COPY --from=rust-game --chown=agent:agent /usr/local/cargo /usr/local/cargo
-
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH="/usr/local/cargo/bin:/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
-
-USER agent
-
-
-# Alias for full target (default if built without --target)
-FROM full AS all

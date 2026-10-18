@@ -28,15 +28,6 @@ x-sandbox-common: &sandbox-common
     sandbox: ai-agent
 
 services:
-  # Default service with full development environment (Web + Rust)
-  agent-sandbox:
-    <<: *sandbox-common
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: full
-    image: ai-agent-sandbox:latest
-
   # Stage for Python backend & JavaScript frontend (Web & AI Assistant)
   agent-sandbox-web-ai-assistant:
     <<: *sandbox-common
@@ -46,26 +37,8 @@ services:
       target: web-ai-assistant
     image: ai-agent-sandbox:web-ai-assistant
 
-  # Alias for backward compatibility
-  agent-sandbox-web:
-    <<: *sandbox-common
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: web-ai-assistant
-    image: ai-agent-sandbox:web-ai-assistant
-
   # Stage with Rust & X11 / OpenGL / Wayland libraries (Game Engine & Graphics)
   agent-sandbox-rust-game:
-    <<: *sandbox-common
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: rust-game
-    image: ai-agent-sandbox:rust-game
-
-  # Alias for backward compatibility
-  agent-sandbox-rust:
     <<: *sandbox-common
     build:
       context: .
