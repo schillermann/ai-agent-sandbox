@@ -3,6 +3,7 @@ x-sandbox-common: &sandbox-common
   working_dir: /workspace
   stdin_open: true
   tty: true
+  command: ["agy"]
   security_opt:
     - no-new-privileges:true
   cap_drop:
@@ -29,7 +30,7 @@ x-sandbox-common: &sandbox-common
 
 services:
   # Stage for Python backend & JavaScript frontend (Web & AI Assistant)
-  agent-sandbox-web-ai-assistant:
+  web-ai-assistant:
     <<: *sandbox-common
     build:
       context: .
@@ -38,7 +39,7 @@ services:
     image: ai-agent-sandbox:web-ai-assistant
 
   # Stage with Rust & X11 / OpenGL / Wayland libraries (Game Engine & Graphics)
-  agent-sandbox-rust-game:
+  rust-game:
     <<: *sandbox-common
     build:
       context: .

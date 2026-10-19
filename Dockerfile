@@ -13,6 +13,9 @@
 # ==============================================================================
 FROM debian:bookworm-slim AS base
 
+# Fail build immediately if any command in a pipeline fails
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Build-time variable only (does not leak into container runtime)
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -41,13 +44,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Google Antigravity CLI globally
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin && \
-    chmod +x /usr/local/bin/agy
+    chmod +x /usr/local/bin/agy && \
+    rm -rf /root/.cache
 
 # Create unprivileged 'agent' user (UID 1000, GID 1000) and prepare mountpoints
 # Kept before COPY commands so rebuilds with script changes are instantaneous
 RUN groupadd -g 1000 agent && \
     useradd -u 1000 -g agent -m -s /bin/bash agent && \
-    mkdir -p /workspace /run/secrets /home/agent/.secrets /home/agent/.gemini/antigravity-cli && \
+    mkdir -p /workspace /run/secrets /home/agent/.secrets /home/agent/.gemini/antigravity-cli /home/agent/.npm-global && \
     chown -R agent:agent /workspace /run/secrets /home/agent
 
 # Copy executable scripts and configurations last to maximize Docker layer cache hits
@@ -84,7 +88,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g pyright \
-    && rm -rf /var/lib/apt/lists/*
+    && npm cache clean --force \
+    && rm -rf /root/.npm /var/lib/apt/lists/*
 
 # Configure dedicated virtualenv and npm global directory for unprivileged 'agent' user
 ENV VIRTUAL_ENV=/opt/venv \
@@ -92,18 +97,17 @@ ENV VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
 RUN python3 -m venv /opt/venv && \
-    mkdir -p /home/agent/.npm-global && \
-    chown -R agent:agent /opt/venv /home/agent/.npm-global
+    chown -R agent:agent /opt/venv
 
-# 3. Pre-install core testing and linting tools for AI agents
+# 3. Pre-install core testing and linting tools directly as unprivileged 'agent' user
+USER agent
+
 RUN /opt/venv/bin/pip install --no-cache-dir \
     pytest \
     pytest-asyncio \
     ruff
 
-USER agent
-
-
+CMD ["agy"]
 
 
 # ==============================================================================
@@ -133,12 +137,10 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:$PATH"
 
-RUN mkdir -p /usr/local/rustup /usr/local/cargo && \
-    chown -R agent:agent /usr/local/rustup /usr/local/cargo && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal && \
     /usr/local/cargo/bin/rustup component add clippy rustfmt && \
-    chown -R agent:agent /usr/local/rustup /usr/local/cargo
+    chown -R agent:agent /usr/local/rustup /usr/local/cargo && \
+    rm -rf /usr/local/rustup/downloads /usr/local/rustup/tmp
 
 USER agent
-
-
+CMD ["agy"]

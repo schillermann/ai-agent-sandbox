@@ -10,8 +10,8 @@ Select the profile that fits your project in [docker-compose.yml](docker-compose
 
 | Service | Toolchains & Libraries |
 | :--- | :--- |
-| **`agent-sandbox-web-ai-assistant`** | Python 3 (venv, pytest, ruff), Node.js 20 (npm, pyright), libpq-dev |
-| **`agent-sandbox-rust-game`** | Rust stable (cargo, clippy, rustfmt), X11/Wayland/OpenGL dev headers |
+| **`web-ai-assistant`** | Python 3 (venv, pytest, ruff), Node.js 20 (npm, pyright), libpq-dev |
+| **`rust-game`** | Rust stable (cargo, clippy, rustfmt), X11/Wayland/OpenGL dev headers |
 
 ---
 
@@ -19,7 +19,7 @@ Select the profile that fits your project in [docker-compose.yml](docker-compose
 
 ### 1. Build
 ```bash
-docker compose build agent-sandbox-web-ai-assistant  # or: agent-sandbox-rust-game
+docker compose build web-ai-assistant  # or: rust-game
 ```
 
 ### 2. Run
