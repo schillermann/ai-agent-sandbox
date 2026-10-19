@@ -1,5 +1,5 @@
 {
-  "model": "gemini-3.8-flash-medium",
+  "model": "gemini-4-argon-medium",
   "reasoningEffort": "medium",
   "toolPermission": "always-proceed",
   "artifactReviewPolicy": "always-proceed",

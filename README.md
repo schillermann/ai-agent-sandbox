@@ -19,7 +19,7 @@ Select the profile that fits your project in [docker-compose.yml](docker-compose
 
 ### 1. Build
 ```bash
-docker compose build web-ai-assistant  # or: rust-game
+docker compose build <service>
 ```
 
 ### 2. Run
