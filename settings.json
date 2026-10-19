@@ -1,5 +1,5 @@
 {
-  "model": "gemini-4-argon-medium",
+  "model": "Gemini 4 Argon (Medium)",
   "reasoningEffort": "medium",
   "toolPermission": "always-proceed",
   "artifactReviewPolicy": "always-proceed",
