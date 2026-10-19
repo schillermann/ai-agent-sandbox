@@ -58,6 +58,27 @@ if [ -d "/workspace" ]; then
     export PYTHONPATH=".:/workspace:/workspace/src:/workspace/backend:${PYTHONPATH:-}"
 fi
 
+# Ensure onboarding state is marked complete so agy skips the first-run wizard
+mkdir -p /home/agent/.gemini/antigravity-cli/cache
+if [ ! -f "/home/agent/.gemini/antigravity-cli/cache/onboarding.json" ]; then
+    echo '{"consumerOnboardingComplete":true,"enterpriseOnboardingComplete":false,"onboardingComplete":true}' > /home/agent/.gemini/antigravity-cli/cache/onboarding.json
+fi
+
+# Check if OAuth token was properly mounted
+TOKEN_FILE="/home/agent/.gemini/antigravity-cli/antigravity-oauth-token"
+if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
+    echo "[SANDBOX] Host Google OAuth token mounted and recognized."
+else
+    echo "[SANDBOX WARNING] Host OAuth token is missing or empty at $TOKEN_FILE!"
+fi
+
+# Ensure workspace and current working directory are automatically trusted
+SETTINGS_FILE="/home/agent/.gemini/antigravity-cli/settings.json"
+if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
+    CURRENT_DIR="$(pwd)"
+    jq --arg dir "$CURRENT_DIR" '.trustedWorkspaces = ((.trustedWorkspaces // []) + ["/workspace", $dir] | unique)' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+fi
+
 # Execute given command, or default to agy (if available) / interactive bash shell
 if [ $# -gt 0 ]; then
     exec "$@"

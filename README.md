@@ -51,7 +51,7 @@ PROJECT_DIR=/path/to/project docker compose run --rm \
 - 🛡️ **Non-Root & Hardened**: Runs strictly as user `agent` (`UID 1000`), drops all capabilities (`cap_drop: ALL`), and prevents privilege escalation (`no-new-privileges`).
 - ⚡ **Resource Limits**: Capped at 2 CPUs, 4 GB RAM (swap disabled), and 250 PIDs.
 - 💥 **Auto-Cleanup**: Container layers and in-memory secrets (`/tmp`, `/run/secrets`, `~/.secrets`) vanish completely upon exit (`--rm`).
-- 🤖 **Autonomous Antigravity**: Pre-configured via [settings.json](settings.json) and mounted OAuth token.
+- 🤖 **Autonomous Antigravity**: Pre-configured via [settings.json](settings.json) and mounted host credentials (OAuth token & onboarding state).
 
 > [!TIP]
 > **Recommended Dual-Workflow:** Let `agy` edit code and run tests inside the isolated sandbox while running GUI apps or dev servers natively on the host with 0ms inotify latency.

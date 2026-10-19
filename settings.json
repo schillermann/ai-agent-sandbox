@@ -3,6 +3,9 @@
   "reasoningEffort": "medium",
   "toolPermission": "always-proceed",
   "artifactReviewPolicy": "always-proceed",
+  "trustedWorkspaces": [
+    "/workspace"
+  ],
   "permissions": {
     "allow": [
       "command(*)",
