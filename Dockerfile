@@ -8,6 +8,7 @@
 #   - rust-game:         Rust toolchain + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
 #   - pyresponse:        web-ai-assistant + prebuilt project venv for ~/code/pyresponse
 #                        (requires the additional build context 'pyresponse-src')
+#   - badger-os:         Rust bare-metal toolchain (aarch64-unknown-none) + QEMU & GDB for ~/code/badger-os
 # ==============================================================================
 
 # ==============================================================================
@@ -196,4 +197,36 @@ RUN uv venv /workspace/.venv --python ${PYTHON_VERSION} --seed && \
     /workspace/.venv/bin/pyright --version && \
     rm -rf /workspace/pyresponse.egg-info
 
+CMD ["agy"]
+
+
+# ==============================================================================
+# Stage 5: badger-os (AArch64 Rust Microkernel & OS Development)
+# Specifically tailored for ~/code/badger-os with bare-metal AArch64 Rust
+# toolchain, LLVM binutils, QEMU system emulation, and multi-arch GDB.
+# ==============================================================================
+FROM base AS badger-os
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+
+# 1. Install QEMU AArch64 system emulator (via qemu-system-arm) and multi-arch GDB
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdb-multiarch \
+    qemu-system-arm \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Install Rust toolchain (stable) with AArch64 bare-metal target and LLVM binary utilities
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:$PATH"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal && \
+    /usr/local/cargo/bin/rustup component add clippy rustfmt llvm-tools-preview && \
+    /usr/local/cargo/bin/rustup target add aarch64-unknown-none && \
+    /usr/local/cargo/bin/cargo install cargo-binutils && \
+    chown -R agent:agent /usr/local/rustup /usr/local/cargo && \
+    rm -rf /usr/local/rustup/downloads /usr/local/rustup/tmp /usr/local/cargo/registry /usr/local/cargo/.package-cache
+
+USER agent
 CMD ["agy"]

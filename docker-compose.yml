@@ -64,3 +64,16 @@ services:
       - /workspace/.venv
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:rw
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
+
+  # Stage for ~/code/badger-os (AArch64 Rust microkernel + QEMU emulation)
+  badger-os:
+    <<: *sandbox-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: badger-os
+    image: ai-agent-sandbox:badger-os
+    volumes:
+      - ${PROJECT_DIR:-../badger-os}:/workspace:rw
+      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:rw
+      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
