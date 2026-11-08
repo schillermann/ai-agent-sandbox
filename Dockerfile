@@ -210,9 +210,10 @@ FROM base AS badger-os
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 
-# 1. Install QEMU AArch64 system emulator (via qemu-system-arm) and multi-arch GDB
+# 1. Install QEMU AArch64 system emulator (via qemu-system-arm), Option-ROMs (ipxe-qemu), and multi-arch GDB
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gdb-multiarch \
+    ipxe-qemu \
     qemu-system-arm \
     && rm -rf /var/lib/apt/lists/*
 
