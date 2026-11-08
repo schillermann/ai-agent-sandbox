@@ -6,6 +6,8 @@
 #   - base:              Minimal core sandbox (hardened, unprivileged 'agent', agy CLI, entrypoint)
 #   - web-ai-assistant:  Python backend + JavaScript frontend development (Web & AI Assistant profile)
 #   - rust-game:         Rust toolchain + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
+#   - pyresponse:        web-ai-assistant + prebuilt project venv for ~/code/pyresponse
+#                        (requires the additional build context 'pyresponse-src')
 # ==============================================================================
 
 # ==============================================================================
@@ -75,34 +77,45 @@ FROM base AS web-ai-assistant
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
 
-# 1. Install Python 3 development environment and PostgreSQL client headers
+# Python version should match the project's production image (e.g. python:3.12-slim)
+ARG PYTHON_VERSION=3.12
+
+# 1. Install PostgreSQL client headers (Python itself is provided by uv below,
+#    independent of Debian bookworm's system Python 3.11)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Node.js 20.x LTS & npm for frontend tooling, and global Pyright CLI
+# 2. Install uv (fast Python version & package manager)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# 3. Install Node.js 20.x LTS & npm for frontend tooling, and global Pyright CLI
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g pyright \
     && npm cache clean --force \
     && rm -rf /root/.npm /var/lib/apt/lists/*
 
-# Configure dedicated virtualenv and npm global directory for unprivileged 'agent' user
+# Configure virtualenv, uv, bytecode cache (kept out of the mounted project folder)
+# and npm global directory for unprivileged 'agent' user
 ENV VIRTUAL_ENV=/opt/venv \
+    UV_PYTHON_INSTALL_DIR=/opt/python \
+    UV_LINK_MODE=copy \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPYCACHEPREFIX=/tmp/pycache \
     NPM_CONFIG_PREFIX=/home/agent/.npm-global \
     PATH="/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
-RUN python3 -m venv /opt/venv && \
-    chown -R agent:agent /opt/venv
+# 4. Install Python ${PYTHON_VERSION} and create the shared venv (pip seeded for compatibility)
+RUN uv python install ${PYTHON_VERSION} && \
+    uv venv /opt/venv --python ${PYTHON_VERSION} --seed && \
+    chown -R agent:agent /opt/venv /opt/python
 
-# 3. Pre-install core testing and linting tools directly as unprivileged 'agent' user
+# 5. Pre-install core testing and linting tools directly as unprivileged 'agent' user
+#    (project dependencies are synced at container start by entrypoint.sh)
 USER agent
 
-RUN /opt/venv/bin/pip install --no-cache-dir \
+RUN uv pip install --no-cache \
     pytest \
     pytest-asyncio \
     ruff
@@ -143,4 +156,44 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     rm -rf /usr/local/rustup/downloads /usr/local/rustup/tmp
 
 USER agent
+CMD ["agy"]
+
+
+# ==============================================================================
+# Stage 4: pyresponse (Pure OOP Python web framework)
+# Builds on web-ai-assistant and bakes the project venv into /workspace/.venv,
+# because the project's AGENTS.md and pyright config expect '.venv/bin/...'.
+#
+# The host's .venv (linked against the host Python) does not work in the
+# container. Mount an anonymous volume over /workspace/.venv (see
+# docker-compose.yml) so the venv baked into this image shadows the host one
+# without touching it on the host.
+#
+# Build (the source is passed as an additional build context):
+#   docker build --target pyresponse \
+#     --build-context pyresponse-src=../pyresponse -t ai-agent-sandbox:pyresponse .
+# ==============================================================================
+FROM web-ai-assistant AS pyresponse
+
+# Project supports Python >= 3.11 (override with --build-arg PYTHON_VERSION=...)
+ARG PYTHON_VERSION=3.12
+
+# Project venv lives inside the workspace path (shadowed by a volume at runtime)
+ENV VIRTUAL_ENV=/workspace/.venv \
+    PATH="/workspace/.venv/bin:$PATH" \
+    SANDBOX_SKIP_DEP_SYNC=1
+
+# Only the files required for an editable install (metadata + package sources);
+# at runtime the bind-mounted project replaces them at the same path
+COPY --chown=agent:agent --from=pyresponse-src pyproject.toml README.md /workspace/
+COPY --chown=agent:agent --from=pyresponse-src pyresponse /workspace/pyresponse
+
+# 1. Create the project venv and install pyresponse editable with dev extras
+#    (pytest, pytest-asyncio, httpx, uvicorn, pyright) -> provides .venv/bin/pyr
+# 2. Warm up the pyright PyPI wrapper so it does not download at runtime
+RUN uv venv /workspace/.venv --python ${PYTHON_VERSION} --seed && \
+    uv pip install --no-cache --python /workspace/.venv/bin/python -e "/workspace[dev]" && \
+    /workspace/.venv/bin/pyright --version && \
+    rm -rf /workspace/pyresponse.egg-info
+
 CMD ["agy"]

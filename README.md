@@ -12,6 +12,7 @@ Select the profile that fits your project in [docker-compose.yml](docker-compose
 | :--- | :--- |
 | **`web-ai-assistant`** | Python 3 (venv, pytest, ruff), Node.js 20 (npm, pyright), libpq-dev |
 | **`rust-game`** | Rust stable (cargo, clippy, rustfmt), X11/Wayland/OpenGL dev headers |
+| **`pyresponse`** | `web-ai-assistant` + prebuilt `.venv` for [pyresponse](https://github.com/schillermann/pyresponse) (editable install, dev extras, pyright). Defaults to `PROJECT_DIR=../pyresponse` |
 
 ---
 

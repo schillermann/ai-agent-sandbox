@@ -58,6 +58,25 @@ if [ -d "/workspace" ]; then
     export PYTHONPATH=".:/workspace:/workspace/src:/workspace/backend:${PYTHONPATH:-}"
 fi
 
+# Sync project Python dependencies into the sandbox venv (/opt/venv)
+# - Only active in stages that provide uv + /opt/venv (e.g. web-ai-assistant)
+# - Override the requirement files via SANDBOX_REQUIREMENTS (space-separated paths)
+# - Disable entirely with SANDBOX_SKIP_DEP_SYNC=1
+# - A failed sync is reported but never blocks the agent from starting
+if [ "${SANDBOX_SKIP_DEP_SYNC:-0}" != "1" ] && [ -x "/opt/venv/bin/python" ] && command -v uv >/dev/null 2>&1; then
+    REQUIREMENT_FILES="${SANDBOX_REQUIREMENTS:-/workspace/requirements.txt /workspace/requirements-dev.txt /workspace/backend/requirements.txt /workspace/backend/requirements-dev.txt}"
+    for req in $REQUIREMENT_FILES; do
+        if [ -f "$req" ]; then
+            echo "[SANDBOX] Syncing Python dependencies from $req into /opt/venv ..."
+            if uv pip install --quiet --python /opt/venv/bin/python -r "$req"; then
+                echo "[SANDBOX] Python dependencies from $req installed."
+            else
+                echo "[SANDBOX WARNING] Dependency sync failed for $req (continuing without it)."
+            fi
+        fi
+    done
+fi
+
 # Ensure onboarding state is marked complete so agy skips the first-run wizard
 mkdir -p /home/agent/.gemini/antigravity-cli/cache
 if [ ! -f "/home/agent/.gemini/antigravity-cli/cache/onboarding.json" ]; then
