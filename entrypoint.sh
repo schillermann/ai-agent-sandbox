@@ -83,16 +83,24 @@ if [ ! -f "/home/agent/.gemini/antigravity-cli/cache/onboarding.json" ]; then
     echo '{"consumerOnboardingComplete":true,"enterpriseOnboardingComplete":false,"onboardingComplete":true}' > /home/agent/.gemini/antigravity-cli/cache/onboarding.json
 fi
 
-# Check if OAuth token was properly mounted
+# Remove any accidental directory at TOKEN_FILE (e.g. left over from a stale bind mount)
 TOKEN_FILE="/home/agent/.gemini/antigravity-cli/antigravity-oauth-token"
-if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
-    echo "[SANDBOX] Host Google OAuth token mounted and recognized."
-else
-    echo "[SANDBOX WARNING] Host OAuth token is missing or empty at $TOKEN_FILE!"
+if [ -d "$TOKEN_FILE" ]; then
+    rmdir "$TOKEN_FILE" 2>/dev/null || rm -rf "$TOKEN_FILE" 2>/dev/null || true
 fi
 
-# Ensure workspace and current working directory are automatically trusted
+if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
+    echo "[SANDBOX] Persistent Google OAuth token recognized."
+else
+    echo "[SANDBOX INFO] No OAuth token at $TOKEN_FILE yet. Log in once inside agy; credentials will persist in the 'ai-agent-sandbox-agy-state' volume."
+fi
+
+# Sync baseline settings.json from image template and ensure workspace is automatically trusted
+DEFAULT_SETTINGS="/usr/local/share/antigravity/settings.json"
 SETTINGS_FILE="/home/agent/.gemini/antigravity-cli/settings.json"
+if [ -f "$DEFAULT_SETTINGS" ]; then
+    cp "$DEFAULT_SETTINGS" "$SETTINGS_FILE"
+fi
 if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
     CURRENT_DIR="$(pwd)"
     jq --arg dir "$CURRENT_DIR" '.trustedWorkspaces = ((.trustedWorkspaces // []) + ["/workspace", $dir] | unique)' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"

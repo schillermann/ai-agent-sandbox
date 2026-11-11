@@ -59,6 +59,7 @@ RUN groupadd -g 1000 agent && \
 
 # Copy executable scripts and configurations last to maximize Docker layer cache hits
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=agent:agent settings.json /usr/local/share/antigravity/settings.json
 COPY --chown=agent:agent settings.json /home/agent/.gemini/antigravity-cli/settings.json
 
 # Permanently enforce non-root execution
