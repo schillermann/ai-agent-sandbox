@@ -26,6 +26,7 @@ x-sandbox-common: &sandbox-common
     - ${PROJECT_DIR:-.}:/workspace:rw
     - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:rw
     - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
+    - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
   labels:
     sandbox: ai-agent
 
@@ -64,6 +65,7 @@ services:
       - /workspace/.venv
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:rw
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
+      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
 
   # Stage for ~/code/badger-os (AArch64 Rust microkernel + QEMU emulation)
   badger-os:
@@ -77,3 +79,4 @@ services:
       - ${PROJECT_DIR:-../badger-os}:/workspace:rw
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/antigravity-oauth-token:/home/agent/.gemini/antigravity-cli/antigravity-oauth-token:rw
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
+      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
