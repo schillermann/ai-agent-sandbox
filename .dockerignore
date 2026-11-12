@@ -3,6 +3,5 @@
 README.md
 LICENSE
 docker-compose.yml
-workspace/
 *.swp
 .*.swp

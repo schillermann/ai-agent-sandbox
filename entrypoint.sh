@@ -3,38 +3,13 @@ set -e
 
 # ==============================================================================
 # AI Agent Sandbox Entrypoint
-# Enforces non-root execution (UID 1000: agent) and handles ephemeral secrets
+# Enforces non-root execution (UID 1000: agent) and initializes environment
 # ==============================================================================
 
 # Verify we are running as unprivileged user
 if [ "$(id -u)" -eq 0 ]; then
     echo "[SECURITY WARNING] Running as root is disallowed in this sandbox!"
     exit 1
-fi
-
-# Load ephemeral secrets from in-memory tmpfs mount if available
-if [ -d "/run/secrets" ]; then
-    for secret_env in /run/secrets/*.env; do
-        if [ -f "$secret_env" ]; then
-            echo "[SANDBOX] Sourcing temporary secrets from $secret_env (in-memory)"
-            set -a
-            # shellcheck source=/dev/null
-            source "$secret_env"
-            set +a
-        fi
-    done
-fi
-
-if [ -d "/home/agent/.secrets" ]; then
-    for secret_env in /home/agent/.secrets/*.env; do
-        if [ -f "$secret_env" ]; then
-            echo "[SANDBOX] Sourcing temporary secrets from $secret_env (in-memory)"
-            set -a
-            # shellcheck source=/dev/null
-            source "$secret_env"
-            set +a
-        fi
-    done
 fi
 
 # Set default git identity if not configured yet
@@ -79,20 +54,9 @@ fi
 
 # Ensure onboarding state is marked complete so agy skips the first-run wizard
 mkdir -p /home/agent/.gemini/antigravity-cli/cache
+chmod 700 /home/agent/.gemini/antigravity-cli 2>/dev/null || true
 if [ ! -f "/home/agent/.gemini/antigravity-cli/cache/onboarding.json" ]; then
     echo '{"consumerOnboardingComplete":true,"enterpriseOnboardingComplete":false,"onboardingComplete":true}' > /home/agent/.gemini/antigravity-cli/cache/onboarding.json
-fi
-
-# Remove any accidental directory at TOKEN_FILE (e.g. left over from a stale bind mount)
-TOKEN_FILE="/home/agent/.gemini/antigravity-cli/antigravity-oauth-token"
-if [ -d "$TOKEN_FILE" ]; then
-    rmdir "$TOKEN_FILE" 2>/dev/null || rm -rf "$TOKEN_FILE" 2>/dev/null || true
-fi
-
-if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
-    echo "[SANDBOX] Persistent Google OAuth token recognized."
-else
-    echo "[SANDBOX INFO] No OAuth token at $TOKEN_FILE yet. Log in once inside agy; credentials will persist in the 'ai-agent-sandbox-agy-state' volume."
 fi
 
 # Sync baseline settings.json from image template and ensure workspace is automatically trusted
@@ -100,10 +64,12 @@ DEFAULT_SETTINGS="/usr/local/share/antigravity/settings.json"
 SETTINGS_FILE="/home/agent/.gemini/antigravity-cli/settings.json"
 if [ -f "$DEFAULT_SETTINGS" ]; then
     cp "$DEFAULT_SETTINGS" "$SETTINGS_FILE"
+    chmod 600 "$SETTINGS_FILE" 2>/dev/null || true
 fi
 if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
     CURRENT_DIR="$(pwd)"
     jq --arg dir "$CURRENT_DIR" '.trustedWorkspaces = ((.trustedWorkspaces // []) + ["/workspace", $dir] | unique)' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    chmod 600 "$SETTINGS_FILE" 2>/dev/null || true
 fi
 
 # Execute given command, or default to agy (if available) / interactive bash shell

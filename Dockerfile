@@ -50,17 +50,20 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr
     chmod +x /usr/local/bin/agy && \
     rm -rf /root/.cache
 
-# Create unprivileged 'agent' user (UID 1000, GID 1000) and prepare mountpoints
+# Create unprivileged 'agent' user (UID 1000, GID 1000), prepare mountpoints with strict permissions,
+# and strip SUID/SGID bits from all system binaries for defense-in-depth against privilege escalation
 # Kept before COPY commands so rebuilds with script changes are instantaneous
 RUN groupadd -g 1000 agent && \
     useradd -u 1000 -g agent -m -s /bin/bash agent && \
-    mkdir -p /workspace /run/secrets /home/agent/.secrets /home/agent/.gemini/antigravity-cli /home/agent/.npm-global && \
-    chown -R agent:agent /workspace /run/secrets /home/agent
+    mkdir -p /workspace /home/agent/.gemini/antigravity-cli /home/agent/.npm-global && \
+    chmod 700 /home/agent/.gemini/antigravity-cli && \
+    chown -R agent:agent /workspace /home/agent && \
+    find / -xdev -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true
 
 # Copy executable scripts and configurations last to maximize Docker layer cache hits
+# /usr/local/share/antigravity/settings.json remains owned by root:root (read-only template)
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY --chown=agent:agent settings.json /usr/local/share/antigravity/settings.json
-COPY --chown=agent:agent settings.json /home/agent/.gemini/antigravity-cli/settings.json
+COPY --chmod=644 settings.json /usr/local/share/antigravity/settings.json
 
 # Permanently enforce non-root execution
 USER agent
@@ -96,7 +99,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g pyright \
     && npm cache clean --force \
-    && rm -rf /root/.npm /var/lib/apt/lists/*
+    && rm -rf /root/.npm /home/agent/.npm /var/lib/apt/lists/*
 
 # Configure virtualenv, uv, bytecode cache (kept out of the mounted project folder)
 # and npm global directory for unprivileged 'agent' user
@@ -109,9 +112,10 @@ ENV VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
 # 4. Install Python ${PYTHON_VERSION} and create the shared venv (pip seeded for compatibility)
-RUN uv python install ${PYTHON_VERSION} && \
-    uv venv /opt/venv --python ${PYTHON_VERSION} --seed && \
-    chown -R agent:agent /opt/venv /opt/python
+RUN uv python install --no-cache ${PYTHON_VERSION} && \
+    uv venv --no-cache /opt/venv --python ${PYTHON_VERSION} --seed && \
+    rm -rf /home/agent/.cache && \
+    chown -R agent:agent /opt/venv /opt/python /home/agent
 
 # 5. Pre-install core testing and linting tools directly as unprivileged 'agent' user
 #    (project dependencies are synced at container start by entrypoint.sh)
@@ -152,9 +156,9 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:$PATH"
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path && \
     /usr/local/cargo/bin/rustup component add clippy rustfmt && \
-    chown -R agent:agent /usr/local/rustup /usr/local/cargo && \
+    chown -R agent:agent /usr/local/rustup /usr/local/cargo /home/agent && \
     rm -rf /usr/local/rustup/downloads /usr/local/rustup/tmp
 
 USER agent
@@ -193,7 +197,7 @@ COPY --chown=agent:agent --from=pyresponse-src pyresponse /workspace/pyresponse
 # 1. Create the project venv and install pyresponse editable with dev extras
 #    (pytest, pytest-asyncio, httpx, uvicorn, pyright) -> provides .venv/bin/pyr
 # 2. Warm up the pyright PyPI wrapper so it does not download at runtime
-RUN uv venv /workspace/.venv --python ${PYTHON_VERSION} --seed && \
+RUN uv venv --no-cache /workspace/.venv --python ${PYTHON_VERSION} --seed && \
     uv pip install --no-cache --python /workspace/.venv/bin/python -e "/workspace[dev]" && \
     /workspace/.venv/bin/pyright --version && \
     rm -rf /workspace/pyresponse.egg-info
@@ -223,11 +227,11 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:$PATH"
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path && \
     /usr/local/cargo/bin/rustup component add clippy rustfmt llvm-tools-preview && \
     /usr/local/cargo/bin/rustup target add aarch64-unknown-none && \
     /usr/local/cargo/bin/cargo install cargo-binutils && \
-    chown -R agent:agent /usr/local/rustup /usr/local/cargo && \
+    chown -R agent:agent /usr/local/rustup /usr/local/cargo /home/agent && \
     rm -rf /usr/local/rustup/downloads /usr/local/rustup/tmp /usr/local/cargo/registry /usr/local/cargo/.package-cache
 
 USER agent

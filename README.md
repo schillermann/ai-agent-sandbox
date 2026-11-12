@@ -50,10 +50,10 @@ PROJECT_DIR=/path/to/project docker compose run --rm \
 
 ## Security & Ephemeral Lifecycle
 
-- 🛡️ **Non-Root & Hardened**: Runs strictly as user `agent` (`UID 1000`), drops all capabilities (`cap_drop: ALL`), and prevents privilege escalation (`no-new-privileges`).
+- 🛡️ **Non-Root & Hardened**: Runs strictly as user `agent` (`UID 1000`), strips SUID/SGID binaries, drops all capabilities (`cap_drop: ALL`), and prevents privilege escalation (`no-new-privileges`).
 - ⚡ **Resource Limits**: Capped at 2 CPUs, 4 GB RAM (swap disabled), and 250 PIDs.
-- 💥 **Auto-Cleanup**: Container layers and in-memory secrets (`/tmp`, `/run/secrets`, `~/.secrets`) vanish completely upon exit (`--rm`).
-- 🤖 **Autonomous Antigravity**: Pre-configured via [settings.json](settings.json), persistent sandbox OAuth volume (`ai-agent-sandbox-agy-state`), onboarding state, and mounted `history.jsonl` for prompt history.
+- 💥 **Auto-Cleanup**: Container layers and in-memory `/tmp` (`tmpfs`) vanish completely upon exit (`--rm`).
+- 🤖 **Autonomous Antigravity**: Pre-configured via [settings.json](settings.json), persistent sandbox state volume (`ai-agent-sandbox-agy-state`), and mounted `history.jsonl` for prompt history.
 
 > [!TIP]
 > **Recommended Dual-Workflow:** Let `agy` edit code and run tests inside the isolated sandbox while running GUI apps or dev servers natively on the host with 0ms inotify latency.

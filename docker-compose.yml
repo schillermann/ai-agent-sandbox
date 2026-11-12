@@ -15,9 +15,7 @@ x-sandbox-common: &sandbox-common
         memory: 4096M
         pids: 250
   tmpfs:
-    - /tmp:rw,noexec,nosuid,size=256m,uid=1000,gid=1000
-    - /run/secrets:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
-    - /home/agent/.secrets:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+    - /tmp:rw,noexec,nosuid,nodev,mode=1777,size=256m,uid=1000,gid=1000
   environment:
     - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-AI Agent}
@@ -25,7 +23,6 @@ x-sandbox-common: &sandbox-common
   volumes:
     - ${PROJECT_DIR:-.}:/workspace:rw
     - agy-state:/home/agent/.gemini/antigravity-cli:rw
-    - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
     - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
   labels:
     sandbox: ai-agent
@@ -64,7 +61,6 @@ services:
       # Anonymous volume: shadows the host .venv with the venv baked into the image
       - /workspace/.venv
       - agy-state:/home/agent/.gemini/antigravity-cli:rw
-      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
 
   # Stage for ~/code/badger-os (AArch64 Rust microkernel + QEMU emulation)
@@ -78,7 +74,6 @@ services:
     volumes:
       - ${PROJECT_DIR:-../badger-os}:/workspace:rw
       - agy-state:/home/agent/.gemini/antigravity-cli:rw
-      - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/jetski_state.pbtxt:/home/agent/.gemini/antigravity-cli/jetski_state.pbtxt:ro
       - /home/${SUDO_USER:-$USER}/.gemini/antigravity-cli/history.jsonl:/home/agent/.gemini/antigravity-cli/history.jsonl:rw
 
 volumes:
