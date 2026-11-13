@@ -4,11 +4,13 @@
 #
 # Available Stages / Targets:
 #   - base:              Minimal core sandbox (hardened, unprivileged 'agent', agy CLI, entrypoint)
+#   - python-base:       Base Python environment managed by uv (shared foundation for Python stages)
 #   - web-ai-assistant:  Python backend + JavaScript frontend development (Web & AI Assistant profile)
-#   - rust-game:         Rust toolchain + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
-#   - pyresponse:        web-ai-assistant + prebuilt project venv for ~/code/pyresponse
+#   - rust-base:         Base Rust toolchain (stable, Cargo, rustc, Clippy, Rustfmt)
+#   - rust-game:         rust-base + X11/OpenGL/Wayland libraries (Game engine & graphics profile)
+#   - pyresponse:        python-base + prebuilt project venv for ~/code/pyresponse
 #                        (requires the additional build context 'pyresponse-src')
-#   - badger-os:         Rust bare-metal toolchain (aarch64-unknown-none) + QEMU & GDB for ~/code/badger-os
+#   - badger-os:         rust-base + bare-metal target (aarch64-unknown-none), QEMU & GDB for ~/code/badger-os
 # ==============================================================================
 
 # ==============================================================================
@@ -74,84 +76,100 @@ CMD ["agy"]
 
 
 # ==============================================================================
-# Stage 2: Web & AI Assistant Development (Python Backend & JavaScript Frontend)
-# Specifically tailored for Web & AI Assistant profiles
+# Stage 2: Base Python Environment
+# Shared foundation providing uv and managed Python runtime (without Node/PostgreSQL)
 # ==============================================================================
-FROM base AS web-ai-assistant
+FROM base AS python-base
 
 USER root
-ARG DEBIAN_FRONTEND=noninteractive
 
 # Python version should match the project's production image (e.g. python:3.12-slim)
 ARG PYTHON_VERSION=3.12
 
-# 1. Install PostgreSQL client headers (Python itself is provided by uv below,
-#    independent of Debian bookworm's system Python 3.11)
+# 1. Install uv (fast Python version & package manager)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# 2. Configure uv and Python bytecode cache (kept out of the mounted project folder)
+ENV UV_PYTHON_INSTALL_DIR=/opt/python \
+    UV_LINK_MODE=copy \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPYCACHEPREFIX=/tmp/pycache
+
+# 3. Install Python ${PYTHON_VERSION} (independent of Debian bookworm's system Python 3.11)
+RUN uv python install --no-cache ${PYTHON_VERSION} && \
+    rm -rf /home/agent/.cache && \
+    chown -R agent:agent /opt/python /home/agent
+
+USER agent
+CMD ["agy"]
+
+
+# ==============================================================================
+# Stage 3: Web & AI Assistant Development (Python Backend & JavaScript Frontend)
+# Specifically tailored for Web & AI Assistant profiles
+# ==============================================================================
+FROM python-base AS web-ai-assistant
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTHON_VERSION=3.12
+
+# 1. Install PostgreSQL client headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install uv (fast Python version & package manager)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-# 3. Install Node.js 20.x LTS & npm for frontend tooling, and global Pyright CLI
+# 2. Install Node.js 20.x LTS & npm for frontend tooling, and global Pyright CLI
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g pyright \
     && npm cache clean --force \
     && rm -rf /root/.npm /home/agent/.npm /var/lib/apt/lists/*
 
-# Configure virtualenv, uv, bytecode cache (kept out of the mounted project folder)
-# and npm global directory for unprivileged 'agent' user
+# Configure shared virtualenv and npm global directory for unprivileged 'agent' user
 ENV VIRTUAL_ENV=/opt/venv \
-    UV_PYTHON_INSTALL_DIR=/opt/python \
-    UV_LINK_MODE=copy \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPYCACHEPREFIX=/tmp/pycache \
     NPM_CONFIG_PREFIX=/home/agent/.npm-global \
     PATH="/opt/venv/bin:/home/agent/.npm-global/bin:$PATH"
 
-# 4. Install Python ${PYTHON_VERSION} and create the shared venv (pip seeded for compatibility)
-RUN uv python install --no-cache ${PYTHON_VERSION} && \
-    uv venv --no-cache /opt/venv --python ${PYTHON_VERSION} --seed && \
+# 3. Create the shared venv (pip seeded for compatibility)
+RUN uv venv --no-cache /opt/venv --python ${PYTHON_VERSION} --seed && \
     rm -rf /home/agent/.cache && \
-    chown -R agent:agent /opt/venv /opt/python /home/agent
+    chown -R agent:agent /opt/venv /home/agent
 
-# 5. Pre-install core testing and linting tools directly as unprivileged 'agent' user
-#    (project dependencies are synced at container start by entrypoint.sh)
+# 4. Pre-install project dependencies, testing, and linting tools directly as unprivileged 'agent' user
+#    (any additional project dependencies are synced at container start by entrypoint.sh)
 USER agent
 
 RUN uv pip install --no-cache \
-    pytest \
-    pytest-asyncio \
+    "git+https://github.com/schillermann/pyresponse.git@main" \
+    "git+https://github.com/schillermann/pyfakepg.git@main" \
+    "git+https://github.com/schillermann/pyaidoc.git@main" \
+    "uvicorn[standard]>=0.28.0" \
+    "pydantic>=2.6.0" \
+    "pytest>=8.0.0" \
+    "pytest-asyncio>=0.23.0" \
+    "httpx>=0.27.0" \
+    "python-dotenv>=1.0.0" \
+    "asyncpg>=0.30.0" \
+    "boto3>=1.34.0" \
+    "python-multipart>=0.0.9" \
+    "pymupdf>=1.24.0" \
+    "reportlab>=4.0.0" \
+    "bcrypt>=4.0.0" \
+    "pyright>=1.1.0" \
     ruff
 
 CMD ["agy"]
 
 
 # ==============================================================================
-# Stage 3: Rust & X11 / OpenGL Game Development
-# Specifically tailored for graphical and game engine projects
+# Stage 4: Base Rust Environment
+# Shared foundation providing Rust toolchain (stable, Cargo, rustc, Clippy, Rustfmt)
 # ==============================================================================
-FROM base AS rust-game
+FROM base AS rust-base
 
 USER root
-ARG DEBIAN_FRONTEND=noninteractive
 
-# 1. Install X11, OpenGL, Wayland, and pkg-config dependencies for graphics and game engines
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-dev \
-    libwayland-dev \
-    libx11-dev \
-    libxcursor-dev \
-    libxi-dev \
-    libxinerama-dev \
-    libxkbcommon-dev \
-    libxrandr-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. Install Rust toolchain (stable) with Cargo, rustc, Clippy, and Rustfmt
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:$PATH"
@@ -166,8 +184,34 @@ CMD ["agy"]
 
 
 # ==============================================================================
-# Stage 4: pyresponse (Pure OOP Python web framework)
-# Builds on web-ai-assistant and bakes the project venv into /workspace/.venv,
+# Stage 5: Rust & X11 / OpenGL Game Development
+# Specifically tailored for graphical and game engine projects
+# ==============================================================================
+FROM rust-base AS rust-game
+
+USER root
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install X11, OpenGL, Wayland, and pkg-config dependencies for graphics and game engines
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-dev \
+    libwayland-dev \
+    libx11-dev \
+    libxcursor-dev \
+    libxi-dev \
+    libxinerama-dev \
+    libxkbcommon-dev \
+    libxrandr-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+USER agent
+CMD ["agy"]
+
+
+# ==============================================================================
+# Stage 6: pyresponse (Pure OOP Python web framework)
+# Builds on python-base and bakes the project venv into /workspace/.venv,
 # because the project's AGENTS.md and pyright config expect '.venv/bin/...'.
 #
 # The host's .venv (linked against the host Python) does not work in the
@@ -179,14 +223,16 @@ CMD ["agy"]
 #   docker build --target pyresponse \
 #     --build-context pyresponse-src=../pyresponse -t ai-agent-sandbox:pyresponse .
 # ==============================================================================
-FROM web-ai-assistant AS pyresponse
+FROM python-base AS pyresponse
 
 # Project supports Python >= 3.11 (override with --build-arg PYTHON_VERSION=...)
 ARG PYTHON_VERSION=3.12
 
-# Project venv lives inside the workspace path (shadowed by a volume at runtime)
+# Project venv lives inside the workspace path (shadowed by a volume at runtime);
+# keep pyright-python's nodeenv cache outside /tmp (which is mounted as tmpfs at runtime)
 ENV VIRTUAL_ENV=/workspace/.venv \
     PATH="/workspace/.venv/bin:$PATH" \
+    PYRIGHT_PYTHON_CACHE_DIR=/home/agent/.cache/pyright-python \
     SANDBOX_SKIP_DEP_SYNC=1
 
 # Only the files required for an editable install (metadata + package sources);
@@ -206,11 +252,11 @@ CMD ["agy"]
 
 
 # ==============================================================================
-# Stage 5: badger-os (AArch64 Rust Microkernel & OS Development)
+# Stage 7: badger-os (AArch64 Rust Microkernel & OS Development)
 # Specifically tailored for ~/code/badger-os with bare-metal AArch64 Rust
 # toolchain, LLVM binutils, QEMU system emulation, and multi-arch GDB.
 # ==============================================================================
-FROM base AS badger-os
+FROM rust-base AS badger-os
 
 USER root
 ARG DEBIAN_FRONTEND=noninteractive
@@ -222,13 +268,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     qemu-system-arm \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Rust toolchain (stable) with AArch64 bare-metal target and LLVM binary utilities
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH="/usr/local/cargo/bin:$PATH"
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path && \
-    /usr/local/cargo/bin/rustup component add clippy rustfmt llvm-tools-preview && \
+# 2. Add AArch64 bare-metal target and LLVM binary utilities to the base Rust toolchain
+RUN /usr/local/cargo/bin/rustup component add llvm-tools-preview && \
     /usr/local/cargo/bin/rustup target add aarch64-unknown-none && \
     /usr/local/cargo/bin/cargo install cargo-binutils && \
     chown -R agent:agent /usr/local/rustup /usr/local/cargo /home/agent && \

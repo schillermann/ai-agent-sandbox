@@ -46,7 +46,7 @@ services:
       target: rust-game
     image: ai-agent-sandbox:rust-game
 
-  # Stage for ~/code/pyresponse (web-ai-assistant + prebuilt project venv)
+  # Stage for ~/code/pyresponse (python-base + prebuilt project venv)
   pyresponse:
     <<: *sandbox-common
     build:
